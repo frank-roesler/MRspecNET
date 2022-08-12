@@ -27,6 +27,7 @@ def plot_losses(losses, y_mode='log'):
 
 
 def print_info(losses, lr, epoch, epochs, n_params):
+    """prints information during NN training"""
     print('Number of model parameters: ', n_params)
     print('Learning rate:', lr)
     print('-' * 50)
@@ -35,6 +36,7 @@ def print_info(losses, lr, epoch, epochs, n_params):
 
 
 def build_ppmAx(bw, noSmp):
+    """sets up the ppm and frequency axes for MR spectrum given bandwidth and number of sampling points"""
     gamma = 42.577  # [MHz/T]
     Bo = 2.89  # [T]
     wCenter = 4.65  # [ppm] Center frequency of Water
@@ -46,6 +48,7 @@ def build_ppmAx(bw, noSmp):
 
 
 def voigtFunc(para, tAx):
+    """returns Voigt function time signal (damped complex exponential)"""
     constL = np.pi
     constG = 2 * np.pi / np.sqrt(16 * np.log(2))
     osc = para['amplitude'] * np.exp(-1j*np.deg2rad(para['freq_offset']*360)*tAx + 1j*np.deg2rad(para['phase_offset']))
@@ -70,6 +73,7 @@ def metabFunc(para, tAx, concentrations, errors, y_metab):
 
 
 def add_noise(signal, noiseLvl):
+    """adds Gaussian noise to signal"""
     noise = (noiseLvl * rand()) * (np.random.randn(*signal.shape) + 1j * np.random.randn(*signal.shape))
     noisy_signal = signal + noise
     return noisy_signal
@@ -107,9 +111,10 @@ def add_mmbg(signal, noSmp, bw, globalPara, mmPara, globalAmp=1, sdGlobalAmp=0.1
 
 
 def make_batch(batch_size, simulator, device, include_mmbg=True, restrict_range=None, normalization=1, **kwargs_BS):
+    """adds Gaussian noise to simulated signal and arranges both noisy signal and ground truth in a tensor batch"""
     batch = []
     for i in range(batch_size):
-        signal = simulator.simulate(mmbg=include_mmbg, normalization=normalization)
+        signal = simulator.simulate(add_mmbg=include_mmbg, normalization=normalization)
         noisy_signal = add_noise(signal, kwargs_BS['noiseLvl'])
         if restrict_range:
             a,b = restrict_range
@@ -126,6 +131,7 @@ def make_batch(batch_size, simulator, device, include_mmbg=True, restrict_range=
 
 
 class Metab_basis:
+    """stores the basis sets for metabolites located at path"""
     def __init__(self, path, kwargs_BS):
         self.kwargs = kwargs_BS
         self.metab_paths = sorted(glob(path+'/*.mat'), key = lambda s: s.casefold())
@@ -140,6 +146,7 @@ class Metab_basis:
         self.errors         = dict(zip(metab_names, error_values))
 
     def make_patterns(self):
+        """arranges basis sets into nunmpy array of shape (noSmp, number of basis sets)"""
         t = np.arange(self.kwargs['noSmp'])/self.kwargs['bw']
         naked_patterns = np.zeros((self.kwargs['noSmp'],len(self.concentrations.values())), dtype=np.complex128)
         ctr=0
@@ -152,6 +159,7 @@ class Metab_basis:
 
 
 class MMBG_basis:
+    """stores the basis sets for macromolecular baseline located at path"""
     def __init__(self, mmbg_path, kwargs_MM):
         self.adcNAA = 1e-4  # mm²/s
         self.bRef = 200  # s/mm²
@@ -168,22 +176,21 @@ class MMBG_basis:
         self.globalPara = globalPara
         self.kwargs = {**kwargs_MM,
                      'globalPara': globalPara,
-                     # 'mmPara': MMBGpara,
-                     'mmPara': MMBGpara_arr,     # for vectorized version of add_mmbg
+                     'mmPara': MMBGpara_arr,
                      }
 
 
 class Simulator:
+    """main simulation tool. Uses basis sets loaded in Metab_basis and MMBG_basis"""
     def __init__(self, metab_basis, mmbg_basis):
         self.metab_basis = metab_basis
         self.mmbg_basis  = mmbg_basis
 
     def add_mmbg(self, signal):
-        # y = add_mmbg(signal, **self.mmbg_basis.kwargs)
-        y = add_mmbg(signal, **self.mmbg_basis.kwargs)   # vectorized version
+        y = add_mmbg(signal, **self.mmbg_basis.kwargs)
         return y
 
-    def simulate(self, mmbg=True, normalization=None):
+    def simulate(self, add_mmbg=True, normalization=None):
         """simulates MRS spectrum as linear combination of basis sets with varying widths"""
         t = np.arange(self.metab_basis.kwargs['noSmp']) / self.metab_basis.kwargs['bw']
         y = self.metab_basis.make_patterns()  # dimensions: (noSmp, #metabolites)
@@ -197,7 +204,7 @@ class Simulator:
                             (self.metab_basis.kwargs['phaseOffs'][1] - self.metab_basis.kwargs['phaseOffs'][0])*rand()
         y = metabFunc(para, t, self.metab_basis.concentrations, self.metab_basis.errors, y)
         y = np.sum(y, 1)
-        if mmbg:
+        if add_mmbg:
             y = self.add_mmbg(y)
         y = fftshift(ifft(np.conj(y), axis=0), axes=0)
 
