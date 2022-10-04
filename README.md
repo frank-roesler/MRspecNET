@@ -2,6 +2,8 @@
 
 This repository contains a collection of Python codes to set up and train a convolutional neural network for denoising in magnetic resonance spectroscopy (MRS). The network is trained using a set of simulated metabolite spectra, which are loaded from a file, randomly varied and decorated with Gaussian noise. This provides a pair of noisy (simulated) data and ground truth. Besides the metabolite basis sets the simulation tool offers the opportunity to add a macromolecular baseline to the simulated spectrum, which is commonly present in the human brain (for certain MRS sequences).
 
+![an example of a noisy spectrum and its denoised version](https://github.com/frank-roesler/MRspecNET/blob/main/Figure_1.png)
+
 The main components of our framework are:
 * `MMBG_basis(PATH,kwargs)`: a class that loads and stores the basis sets for the macromolecular baseline located at `PATH`. Accepts a dict of keyword arguments that define how the basis sets are combined into a single spectrum;
 * `Metab_basis(PATH,kwargs)`: a class that loads and stores the basis sets for the metabolites located at `PATH`. Accepts a dict of keyword arguments that define how the basis sets are combined into a single spectrum;
